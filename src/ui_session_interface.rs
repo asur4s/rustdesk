@@ -22,11 +22,12 @@ use hbb_common::{fs, get_version_number, log, Stream};
 use crate::client::io_loop::Remote;
 use crate::client::{
     check_if_retry, handle_hash, handle_login_error, handle_login_from_ui, handle_test_delay,
-    input_os_password, load_config, send_mouse, start_video_audio_threads, FileManager, KeyCode,
-    LoginConfigHandler, QualityStatus, KEY_MAP,
+    input_os_password, load_config, send_mouse, start_video_audio_threads, FileManager,
+    LoginConfigHandler, QualityStatus,
 };
 use crate::common::{self, GrabState};
 use crate::keyboard;
+use crate::keyboard_impl::{KeyCode, KEY_MAP};
 use crate::{client::Data, client::Interface};
 
 pub static IS_IN: AtomicBool = AtomicBool::new(false);
