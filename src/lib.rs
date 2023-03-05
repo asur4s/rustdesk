@@ -50,6 +50,7 @@ mod ui_interface;
 mod ui_session_interface;
 
 mod hbbs_http;
+mod keyboard_impl;
 
 #[cfg(windows)]
 pub mod clipboard_file;
