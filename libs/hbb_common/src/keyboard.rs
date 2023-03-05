@@ -1,6 +1,11 @@
-use std::{fmt, slice::Iter, str::FromStr};
-
-use crate::protos::message::KeyboardMode;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    slice::Iter,
+    str::FromStr,
+};
+use protobuf::Message;
+use crate::{message_proto::KeyEvent, protos::message::KeyboardMode};
 
 impl fmt::Display for KeyboardMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -35,5 +40,23 @@ impl KeyboardMode {
             KeyboardMode::Auto,
         ];
         KEYBOARD_MODES.iter()
+    }
+}
+
+impl TryInto<Vec<u8>> for KeyEvent {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        self.write_to_bytes()
+            .map_err(|err| anyhow::anyhow!("Faild to encode key_event: {:?}", err))
+    }
+}
+
+impl TryFrom<&[u8]> for KeyEvent {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        KeyEvent::parse_from_bytes(value)
+            .map_err(|err| anyhow::anyhow!("Faild to decode key_event: {:?}", err))
     }
 }
