@@ -1,2 +1,2 @@
-mod test_client;
-mod test_server;
+mod client;
+mod server;
