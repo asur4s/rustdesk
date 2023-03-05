@@ -22,7 +22,7 @@ use hbb_common::{fs, get_version_number, log, Stream};
 use crate::client::io_loop::Remote;
 use crate::client::{
     check_if_retry, handle_hash, handle_login_error, handle_login_from_ui, handle_test_delay,
-    input_os_password, load_config, send_mouse, start_video_audio_threads, FileManager, Key,
+    input_os_password, load_config, send_mouse, start_video_audio_threads, FileManager, KeyCode,
     LoginConfigHandler, QualityStatus, KEY_MAP,
 };
 use crate::common::{self, GrabState};
@@ -374,7 +374,6 @@ impl<T: InvokeUiSession> Session<T> {
     }
 
     pub fn swab_modifier_key(&self, msg: &mut KeyEvent) {
-
         let allow_swap_key = self.get_toggle_option("allow_swap_key".to_string());
         if allow_swap_key {
             if let Some(key_event::Union::ControlKey(ck)) = msg.union {
@@ -388,19 +387,22 @@ impl<T: InvokeUiSession> Session<T> {
                 };
                 msg.set_control_key(ck);
             }
-            msg.modifiers = msg.modifiers.iter().map(|ck| {
-                let ck = ck.enum_value_or_default();
-                let ck = match ck {
-                    ControlKey::Control => ControlKey::Meta,
-                    ControlKey::Meta => ControlKey::Control,
-                    ControlKey::RControl => ControlKey::Meta,
-                    ControlKey::RWin => ControlKey::Control,
-                    _ => ck,
-                };
-                hbb_common::protobuf::EnumOrUnknown::new(ck)
-            }).collect();
-            
-        
+            msg.modifiers = msg
+                .modifiers
+                .iter()
+                .map(|ck| {
+                    let ck = ck.enum_value_or_default();
+                    let ck = match ck {
+                        ControlKey::Control => ControlKey::Meta,
+                        ControlKey::Meta => ControlKey::Control,
+                        ControlKey::RControl => ControlKey::Meta,
+                        ControlKey::RWin => ControlKey::Control,
+                        _ => ck,
+                    };
+                    hbb_common::protobuf::EnumOrUnknown::new(ck)
+                })
+                .collect();
+
             let code = msg.chr();
             if code != 0 {
                 let mut peer = self.peer_platform().to_lowercase();
@@ -444,7 +446,6 @@ impl<T: InvokeUiSession> Session<T> {
                 msg.set_chr(key);
             }
         }
-
     }
 
     pub fn send_key_event(&self, evt: &KeyEvent) {
@@ -515,7 +516,7 @@ impl<T: InvokeUiSession> Session<T> {
     ) {
         let chars: Vec<char> = name.chars().collect();
         if chars.len() == 1 {
-            let key = Key::_Raw(chars[0] as _);
+            let key = KeyCode::_Raw(chars[0] as _);
             self._input_key(key, down, press, alt, ctrl, shift, command);
         } else {
             if let Some(key) = KEY_MAP.get(name) {
@@ -571,7 +572,7 @@ impl<T: InvokeUiSession> Session<T> {
     // flutter only TODO new input
     fn _input_key(
         &self,
-        key: Key,
+        key: KeyCode,
         down: bool,
         press: bool,
         alt: bool,
@@ -588,13 +589,13 @@ impl<T: InvokeUiSession> Session<T> {
         };
         let mut key_event = KeyEvent::new();
         match key {
-            Key::Chr(chr) => {
+            KeyCode::Chr(chr) => {
                 key_event.set_chr(chr);
             }
-            Key::ControlKey(key) => {
+            KeyCode::ControlKey(key) => {
                 key_event.set_control_key(key.clone());
             }
-            Key::_Raw(raw) => {
+            KeyCode::_Raw(raw) => {
                 key_event.set_chr(raw);
             }
         }
@@ -1011,21 +1012,25 @@ impl<T: InvokeUiSession> Interface for Session<T> {
             handle_test_delay(t, peer).await;
         }
     }
-    
-    fn swap_modifier_mouse(&self, msg : &mut hbb_common::protos::message::MouseEvent) {
+
+    fn swap_modifier_mouse(&self, msg: &mut hbb_common::protos::message::MouseEvent) {
         let allow_swap_key = self.get_toggle_option("allow_swap_key".to_string());
-        if allow_swap_key  {
-            msg.modifiers = msg.modifiers.iter().map(|ck| {
-                let ck = ck.enum_value_or_default();
-                let ck = match ck {
-                    ControlKey::Control => ControlKey::Meta,
-                    ControlKey::Meta => ControlKey::Control,
-                    ControlKey::RControl => ControlKey::Meta,
-                    ControlKey::RWin => ControlKey::Control,
-                    _ => ck,
-                };
-                hbb_common::protobuf::EnumOrUnknown::new(ck)
-            }).collect();
+        if allow_swap_key {
+            msg.modifiers = msg
+                .modifiers
+                .iter()
+                .map(|ck| {
+                    let ck = ck.enum_value_or_default();
+                    let ck = match ck {
+                        ControlKey::Control => ControlKey::Meta,
+                        ControlKey::Meta => ControlKey::Control,
+                        ControlKey::RControl => ControlKey::Meta,
+                        ControlKey::RWin => ControlKey::Control,
+                        _ => ck,
+                    };
+                    hbb_common::protobuf::EnumOrUnknown::new(ck)
+                })
+                .collect();
         };
     }
 }
