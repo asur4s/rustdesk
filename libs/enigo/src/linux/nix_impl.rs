@@ -47,15 +47,11 @@ impl Enigo {
             None => false,
             Some(tfc) => {
                 if let Key::Layout(chr) = key {
-                    if down {
-                        if let Err(_) = tfc.unicode_char_down(chr) {
-                            return false;
-                        }
+                    if down && tfc.unicode_char_down(chr).is_err() {
+                        return false;
                     }
-                    if up {
-                        if let Err(_) = tfc.unicode_char_up(chr) {
-                            return false;
-                        }
+                    if up && tfc.unicode_char_up(chr).is_err() {
+                        return false;
                     }
                     return true;
                 }
@@ -66,17 +62,13 @@ impl Enigo {
                     }
                 };
 
-                if down {
-                    if let Err(_) = tfc.key_down(key) {
-                        return false;
-                    }
+                if down && tfc.key_down(key).is_err() {
+                    return false;
                 };
-                if up {
-                    if let Err(_) = tfc.key_up(key) {
-                        return false;
-                    }
+                if up && tfc.key_up(key).is_err() {
+                    return false;
                 };
-                return true;
+                true
             }
         }
     }
@@ -117,66 +109,52 @@ impl MouseControllable for Enigo {
     fn mouse_move_to(&mut self, x: i32, y: i32) {
         if self.is_x11 {
             self.xdo.mouse_move_to(x, y);
-        } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_move_to(x, y)
-            }
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_move_to(x, y)
         }
     }
     fn mouse_move_relative(&mut self, x: i32, y: i32) {
         if self.is_x11 {
             self.xdo.mouse_move_relative(x, y);
-        } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_move_relative(x, y)
-            }
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_move_relative(x, y)
         }
     }
     fn mouse_down(&mut self, button: MouseButton) -> crate::ResultType {
         if self.is_x11 {
             self.xdo.mouse_down(button)
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_down(button)
         } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_down(button)
-            } else {
-                Ok(())
-            }
+            Ok(())
         }
     }
     fn mouse_up(&mut self, button: MouseButton) {
         if self.is_x11 {
             self.xdo.mouse_up(button)
-        } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_up(button)
-            }
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_up(button)
         }
     }
     fn mouse_click(&mut self, button: MouseButton) {
         if self.is_x11 {
             self.xdo.mouse_click(button)
-        } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_click(button)
-            }
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_click(button)
         }
     }
     fn mouse_scroll_x(&mut self, length: i32) {
         if self.is_x11 {
             self.xdo.mouse_scroll_x(length)
-        } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_scroll_x(length)
-            }
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_scroll_x(length)
         }
     }
     fn mouse_scroll_y(&mut self, length: i32) {
         if self.is_x11 {
             self.xdo.mouse_scroll_y(length)
-        } else {
-            if let Some(mouse) = &mut self.custom_mouse {
-                mouse.mouse_scroll_y(length)
-            }
+        } else if let Some(mouse) = &mut self.custom_mouse {
+            mouse.mouse_scroll_y(length)
         }
     }
 }
@@ -214,22 +192,18 @@ impl KeyboardControllable for Enigo {
     fn get_key_state(&mut self, key: Key) -> bool {
         if self.is_x11 {
             self.xdo.get_key_state(key)
+        } else if let Some(keyboard) = &mut self.custom_keyboard {
+            keyboard.get_key_state(key)
         } else {
-            if let Some(keyboard) = &mut self.custom_keyboard {
-                keyboard.get_key_state(key)
-            } else {
-                get_led_state(key)
-            }
+            get_led_state(key)
         }
     }
 
     fn key_sequence(&mut self, sequence: &str) {
         if self.is_x11 {
             self.xdo.key_sequence(sequence)
-        } else {
-            if let Some(keyboard) = &mut self.custom_keyboard {
-                keyboard.key_sequence(sequence)
-            }
+        } else if let Some(keyboard) = &mut self.custom_keyboard {
+            keyboard.key_sequence(sequence)
         }
     }
 
@@ -241,12 +215,10 @@ impl KeyboardControllable for Enigo {
             } else {
                 Ok(())
             }
+        } else if let Some(keyboard) = &mut self.custom_keyboard {
+            keyboard.key_down(key)
         } else {
-            if let Some(keyboard) = &mut self.custom_keyboard {
-                keyboard.key_down(key)
-            } else {
-                Ok(())
-            }
+            Ok(())
         }
     }
     fn key_up(&mut self, key: Key) {
@@ -255,10 +227,8 @@ impl KeyboardControllable for Enigo {
             if !has_down {
                 self.xdo.key_up(key)
             }
-        } else {
-            if let Some(keyboard) = &mut self.custom_keyboard {
-                keyboard.key_up(key)
-            }
+        } else if let Some(keyboard) = &mut self.custom_keyboard {
+            keyboard.key_up(key)
         }
     }
     fn key_click(&mut self, key: Key) {
