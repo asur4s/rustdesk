@@ -1,11 +1,11 @@
+use crate::{message_proto::KeyEvent, protos::message::KeyboardMode};
+use protobuf::Message;
 use std::{
     convert::{TryFrom, TryInto},
-    fmt,
+    fmt::{self},
     slice::Iter,
     str::FromStr,
 };
-use protobuf::Message;
-use crate::{message_proto::KeyEvent, protos::message::KeyboardMode};
 
 impl fmt::Display for KeyboardMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

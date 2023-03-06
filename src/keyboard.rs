@@ -894,7 +894,7 @@ mod test {
     };
     use rdev::{Event, EventType, Key};
     use std::{
-        io::{BufReader, Write, Read},
+        io::{BufReader, Read, Write},
         net::{TcpListener, TcpStream},
     };
 
