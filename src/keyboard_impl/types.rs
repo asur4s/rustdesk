@@ -1,7 +1,7 @@
 use bitflags::*;
 use hbb_common::message_proto::ControlKey;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 bitflags! {
     /// https://stackoverflow.com/questions/69656145/how-does-modifiersas-in-xmodmap-work-under-linux-operating-system
