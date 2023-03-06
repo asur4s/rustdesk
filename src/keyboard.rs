@@ -901,7 +901,6 @@ mod test {
     static TARGET_HOST: &'static str = "127.0.0.1";
 
     fn send_key_event(key_event: &KeyEvent) -> anyhow::Result<()> {
-        log::info!("key_event: {:?}", key_event);
         let mut stream = TcpStream::connect((TARGET_HOST, 7878))?;
         let raw_data: Vec<u8> = key_event.to_owned().try_into()?;
 
@@ -946,13 +945,15 @@ mod test {
         loop {
             let event = recv.recv()?;
             let lock_modes = None;
-            let keyboard_mode = KeyboardMode::Map;
+            let keyboard_mode = KeyboardMode::Translate;
 
             if keyboard::is_long_press(&event) {
                 continue;
             }
+            log::info!("event: {:?}", &event);
             for key_event in keyboard::event_to_key_events(&event, keyboard_mode, lock_modes) {
                 // todo:
+                log::info!("key_event: {:?}", key_event);
                 send_key_event(&key_event)?;
             }
         }
