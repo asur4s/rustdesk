@@ -22,6 +22,7 @@ use crate::{
     client::*,
     ui_interface::has_hwcodec,
     ui_session_interface::{InvokeUiSession, Session},
+    keyboard_impl::*,
 };
 
 type Video = AssetPtr<video_destination>;
@@ -626,10 +627,10 @@ impl SciterSession {
             key_event.set_unicode(code.clone() as _);
         } else if let Some(key) = KEY_MAP.get(name) {
             match key {
-                Key::Chr(chr) => {
+                KeyCode::Chr(chr) => {
                     key_event.set_chr(chr.clone());
                 }
-                Key::ControlKey(key) => {
+                KeyCode::ControlKey(key) => {
                     key_event.set_control_key(key.clone());
                 }
                 _ => {}
