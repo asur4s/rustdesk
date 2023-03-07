@@ -335,12 +335,16 @@ mod test {
     use crate::{Enigo, Key, KeyboardControllable};
     use hbb_common::{anyhow, env_logger};
 
-    #[test]
-    fn test_simulate_char() -> anyhow::Result<()> {
+    fn init_test_env() {
         env_logger::init_from_env(
             env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
         );
         std::env::set_var("DISPLAY", ":0");
+    }
+
+    #[test]
+    fn test_simulate_char() -> anyhow::Result<()> {
+        init_test_env();
 
         let mut enigo: Enigo = Default::default();
         // normal char
@@ -355,10 +359,7 @@ mod test {
 
     #[test]
     fn test_click_chr() -> anyhow::Result<()> {
-        env_logger::init_from_env(
-            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
-        );
-        std::env::set_var("DISPLAY", ":0");
+        init_test_env();
 
         let mut enigo: Enigo = Default::default();
         // normal char
