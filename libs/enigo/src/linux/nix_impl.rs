@@ -2,8 +2,9 @@ use super::xdo::EnigoXdo;
 use crate::{Key, KeyboardControllable, MouseButton, MouseControllable};
 
 use keyboarder::{
-    connection::ConnectionOps,
-    platform_impl::{Connection, Simulator},
+    platform_impl::Simulator,
+    simulate::Simulate,
+    types::{KeyEvent, ServerMode, SimEvent},
 };
 use std::io::Read;
 use tfc::{traits::*, Context as TFC_Context, Key as TFC_Key};
@@ -16,7 +17,6 @@ pub struct Enigo {
     xdo: EnigoXdo,
     is_x11: bool,
     tfc: Option<TFC_Context>,
-    keyboarder: Option<Simulator>,
     custom_keyboard: Option<CustomKeyboard>,
     custom_mouse: Option<CustomMouce>,
 }
@@ -84,28 +84,29 @@ impl Enigo {
 impl Default for Enigo {
     fn default() -> Self {
         let is_x11 = "x11" == hbb_common::platform::linux::get_display_server();
+        let tfc = if is_x11 {
+            match TFC_Context::new() {
+                Ok(ctx) => Some(ctx),
+                Err(..) => {
+                    println!("kbd context error");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        if is_x11 {
+            Simulator::spawn_server(ServerMode::Translate)
+                .map_err(|err| log::error!("Failed to spawn keyboarder server: {:?}", err))
+                .ok();
+        };
+
         Self {
             is_x11,
-            tfc: if is_x11 {
-                match TFC_Context::new() {
-                    Ok(ctx) => Some(ctx),
-                    Err(..) => {
-                        println!("kbd context error");
-                        None
-                    }
-                }
-            } else {
-                None
-            },
+            tfc,
             custom_keyboard: None,
             custom_mouse: None,
             xdo: EnigoXdo::default(),
-            keyboarder: {
-                let conn = Connection::init()
-                    .map_err(|err| log::error!("Failed to init XConnection: {:?}", err))
-                    .ok();
-                conn.map(|conn| Simulator::new(&conn))
-            },
         }
     }
 }
@@ -247,8 +248,16 @@ impl KeyboardControllable for Enigo {
         }
     }
     fn key_click(&mut self, key: Key) {
-        self.key_down(key).ok();
-        self.key_up(key);
+        if let Key::Layout(chr) = key {
+            let key_event = KeyEvent::with_char(chr);
+            if let Err(err) = Simulator::event_to_server(&SimEvent::Simulate(key_event)) {
+                println!("{:?}", err);
+                log::error!("Failed to simulate key_event: {:?}", err);
+            }
+        } else {
+            self.key_down(key).ok();
+            self.key_up(key);
+        }
     }
 }
 
@@ -340,6 +349,21 @@ mod test {
         // dead char
         enigo.key_down(Key::Layout('â'))?;
         enigo.key_up(Key::Layout('â'));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_click_chr() -> anyhow::Result<()> {
+        env_logger::init_from_env(
+            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+        );
+        std::env::set_var("DISPLAY", ":0");
+
+        let mut enigo: Enigo = Default::default();
+        // normal char
+        let key = Key::Layout('1');
+        enigo.key_click(key);
 
         Ok(())
     }
