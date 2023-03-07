@@ -1,8 +1,12 @@
 use super::xdo::EnigoXdo;
 use crate::{Key, KeyboardControllable, MouseButton, MouseControllable};
+
+use keyboarder::{
+    connection::ConnectionOps,
+    platform_impl::{Connection, Simulator},
+};
 use std::io::Read;
 use tfc::{traits::*, Context as TFC_Context, Key as TFC_Key};
-
 pub type CustomKeyboard = Box<dyn KeyboardControllable + Send>;
 pub type CustomMouce = Box<dyn MouseControllable + Send>;
 
@@ -12,6 +16,7 @@ pub struct Enigo {
     xdo: EnigoXdo,
     is_x11: bool,
     tfc: Option<TFC_Context>,
+    keyboarder: Option<Simulator>,
     custom_keyboard: Option<CustomKeyboard>,
     custom_mouse: Option<CustomMouce>,
 }
@@ -93,6 +98,12 @@ impl Default for Enigo {
             custom_keyboard: None,
             custom_mouse: None,
             xdo: EnigoXdo::default(),
+            keyboarder: {
+                let conn = Connection::init()
+                    .map_err(|err| log::error!("Failed to init XConnection: {:?}", err))
+                    .ok();
+                conn.map(|conn| Simulator::new(&conn))
+            },
         }
     }
 }
@@ -304,4 +315,23 @@ fn convert_to_tfc_key(key: Key) -> Option<TFC_Key> {
         }
     };
     Some(key)
+}
+
+#[cfg(test)]
+mod test {
+    use hbb_common::{anyhow, env_logger};
+
+    use crate::{Enigo, Key, KeyboardControllable};
+
+    #[test]
+    fn test_sim_char() -> anyhow::Result<()> {
+        env_logger::init();
+        std::env::set_var("DISPLAY", ":0");
+
+        let mut enigo: Enigo = Default::default();
+        enigo.key_down(Key::Layout('1'))?;
+        enigo.key_down(Key::Layout('1'))?;
+
+        Ok(())
+    }
 }
