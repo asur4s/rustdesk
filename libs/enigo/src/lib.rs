@@ -83,8 +83,9 @@ pub mod types;
 
 /// Use anyhow Result is easier to handle err.
 pub type ResultType = anyhow::Result<()>;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// MouseButton represents a mouse button,
 /// and is used in for example
 /// [mouse_click](trait.MouseControllable.html#tymethod.mouse_click).
@@ -253,7 +254,7 @@ pub trait MouseControllable {
 /// A key on the keyboard.
 /// For alphabetical keys, use Key::Layout for a system independent key.
 /// If a key is missing, you can use the raw keycode with Key::Raw.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Key {
     /// alt key on Linux and Windows (option key on macOS)
     Alt,

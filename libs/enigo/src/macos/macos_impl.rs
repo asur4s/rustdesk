@@ -229,7 +229,7 @@ impl MouseControllable for Enigo {
             _ => {
                 log::info!("Unsupported button {:?}", button);
                 return Ok(());
-            },
+            }
         };
         let dest = CGPoint::new(current_x as f64, current_y as f64);
         if let Some(src) = self.event_source.as_ref() {
@@ -255,7 +255,7 @@ impl MouseControllable for Enigo {
             _ => {
                 log::info!("Unsupported button {:?}", button);
                 return;
-            },
+            }
         };
         let dest = CGPoint::new(current_x as f64, current_y as f64);
         if let Some(src) = self.event_source.as_ref() {
@@ -341,7 +341,7 @@ impl KeyboardControllable for Enigo {
     fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    
+
     fn key_sequence(&mut self, sequence: &str) {
         // NOTE(dustin): This is a fix for issue https://github.com/enigo-rs/enigo/issues/68
         // TODO(dustin): This could be improved by aggregating 20 bytes worth of graphemes at a time
@@ -378,12 +378,10 @@ impl KeyboardControllable for Enigo {
     fn key_down(&mut self, key: Key) -> crate::ResultType {
         let code = self.key_to_keycode(key);
         if code == u16::MAX {
-            return Err("".into()); 
+            return Err("".into());
         }
         if let Some(src) = self.event_source.as_ref() {
-            if let Ok(event) =
-                CGEvent::new_keyboard_event(src.clone(), code, true)
-            {
+            if let Ok(event) = CGEvent::new_keyboard_event(src.clone(), code, true) {
                 self.post(event);
             }
         }

@@ -156,7 +156,7 @@ impl MouseControllable for Enigo {
             match button {
                 MouseButton::Back => XBUTTON1 as _,
                 MouseButton::Forward => XBUTTON2 as _,
-                _ => 0, 
+                _ => 0,
             },
             0,
             0,
@@ -186,7 +186,7 @@ impl MouseControllable for Enigo {
             match button {
                 MouseButton::Back => XBUTTON1 as _,
                 MouseButton::Forward => XBUTTON2 as _,
-                _ => 0, 
+                _ => 0,
             },
             0,
             0,
@@ -215,7 +215,7 @@ impl KeyboardControllable for Enigo {
     fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    
+
     fn key_sequence(&mut self, sequence: &str) {
         let mut buffer = [0; 2];
 
