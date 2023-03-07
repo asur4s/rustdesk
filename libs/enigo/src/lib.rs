@@ -86,8 +86,8 @@ extern crate serde_derive;
 #[cfg(feature = "with_serde")]
 extern crate serde;
 
-///
-pub type ResultType = std::result::Result<(), Box<dyn std::error::Error>>;
+/// Use anyhow Result is easier to handle err.
+pub type ResultType = anyhow::Result<()>;
 
 #[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -521,30 +521,5 @@ use std::fmt;
 impl fmt::Debug for Enigo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Enigo")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_get_key_state() {
-        let mut enigo = Enigo::new();
-        let keys = [Key::CapsLock, Key::NumLock];
-        for k in keys.iter() {
-            enigo.key_click(k.clone());
-            let a = enigo.get_key_state(k.clone());
-            enigo.key_click(k.clone());
-            let b = enigo.get_key_state(k.clone());
-            assert!(a != b);
-        }
-        let keys = [Key::Control, Key::Alt, Key::Shift];
-        for k in keys.iter() {
-            enigo.key_down(k.clone()).ok();
-            let a = enigo.get_key_state(k.clone());
-            enigo.key_up(k.clone());
-            let b = enigo.get_key_state(k.clone());
-            assert!(a != b);
-        }
     }
 }

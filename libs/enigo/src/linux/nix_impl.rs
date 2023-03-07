@@ -47,34 +47,36 @@ impl Enigo {
         &mut self.custom_mouse
     }
 
-    fn tfc_key_down_or_up(&mut self, key: Key, down: bool, up: bool) -> bool {
-        match &mut self.tfc {
-            None => false,
-            Some(tfc) => {
-                if let Key::Layout(chr) = key {
-                    if down && tfc.unicode_char_down(chr).is_err() {
-                        return false;
-                    }
-                    if up && tfc.unicode_char_up(chr).is_err() {
-                        return false;
-                    }
-                    return true;
-                }
-                let key = match convert_to_tfc_key(key) {
-                    Some(key) => key,
-                    None => {
-                        return false;
-                    }
-                };
+    fn simulate_char_by_tfc(tfc: &mut TFC_Context, chr: char, down: bool) -> anyhow::Result<()> {
+        let res = if down {
+            tfc.unicode_char_down(chr)
+        } else {
+            tfc.unicode_char_up(chr)
+        };
+        res.map_err(|err| anyhow::anyhow!("Failed to simulate: {:?}", err))
+    }
 
-                if down && tfc.key_down(key).is_err() {
-                    return false;
-                };
-                if up && tfc.key_up(key).is_err() {
-                    return false;
-                };
-                true
+    fn simulate_key_by_tfc(tfc: &mut TFC_Context, key: Key, down: bool) -> anyhow::Result<()> {
+        if let Some(key) = convert_to_tfc_key(key) {
+            let res = if down {
+                tfc.key_down(key)
+            } else {
+                tfc.key_up(key)
+            };
+            res.map_err(|err| anyhow::anyhow!("Failed to simulate: {:?}", err))
+        } else {
+            anyhow::bail!("Not found key about TFC: {:?}", key)
+        }
+    }
+
+    fn simulate_by_tfc(&mut self, key: Key, down: bool) -> anyhow::Result<()> {
+        if let Some(tfc) = &mut self.tfc {
+            match key {
+                Key::Layout(chr) => Self::simulate_char_by_tfc(tfc, chr, down),
+                _ => Self::simulate_key_by_tfc(tfc, key, down),
             }
+        } else {
+            anyhow::bail!("Not found TFC Context")
         }
     }
 }
@@ -220,8 +222,8 @@ impl KeyboardControllable for Enigo {
 
     fn key_down(&mut self, key: Key) -> crate::ResultType {
         if self.is_x11 {
-            let has_down = self.tfc_key_down_or_up(key, true, false);
-            if !has_down {
+            if let Err(err) = self.simulate_by_tfc(key, true) {
+                log::warn!("Failed to simulate key: {:?} => up", err);
                 self.xdo.key_down(key)
             } else {
                 Ok(())
@@ -234,12 +236,14 @@ impl KeyboardControllable for Enigo {
     }
     fn key_up(&mut self, key: Key) {
         if self.is_x11 {
-            let has_down = self.tfc_key_down_or_up(key, false, true);
-            if !has_down {
-                self.xdo.key_up(key)
+            if let Err(err) = self.simulate_by_tfc(key, false) {
+                log::warn!("Failed to simulate key: {:?} => down", err);
+                self.xdo.key_up(key);
             }
         } else if let Some(keyboard) = &mut self.custom_keyboard {
             keyboard.key_up(key)
+        } else {
+            log::error!("Not found uinput keyboard");
         }
     }
     fn key_click(&mut self, key: Key) {
@@ -319,19 +323,45 @@ fn convert_to_tfc_key(key: Key) -> Option<TFC_Key> {
 
 #[cfg(test)]
 mod test {
+    use crate::{Enigo, Key, KeyboardControllable};
     use hbb_common::{anyhow, env_logger};
 
-    use crate::{Enigo, Key, KeyboardControllable};
-
     #[test]
-    fn test_sim_char() -> anyhow::Result<()> {
-        env_logger::init();
+    fn test_simulate_char() -> anyhow::Result<()> {
+        env_logger::init_from_env(
+            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+        );
         std::env::set_var("DISPLAY", ":0");
 
         let mut enigo: Enigo = Default::default();
+        // normal char
         enigo.key_down(Key::Layout('1'))?;
-        enigo.key_down(Key::Layout('1'))?;
+        enigo.key_up(Key::Layout('1'));
+        // dead char
+        enigo.key_down(Key::Layout('â'))?;
+        enigo.key_up(Key::Layout('â'));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_get_key_state() {
+        let mut enigo = Enigo::new();
+
+        for k in [Key::CapsLock, Key::NumLock] {
+            enigo.key_click(k);
+            let a = enigo.get_key_state(k);
+            enigo.key_click(k);
+            let b = enigo.get_key_state(k);
+            assert!(a != b);
+        }
+
+        for k in [Key::Control, Key::Alt, Key::Shift] {
+            enigo.key_down(k).ok();
+            let a = enigo.get_key_state(k);
+            enigo.key_up(k);
+            let b = enigo.get_key_state(k);
+            assert!(a != b);
+        }
     }
 }
