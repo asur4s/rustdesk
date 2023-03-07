@@ -51,7 +51,6 @@
 //! enigo.mouse_up(MouseButton::Left);
 //! enigo.key_sequence("hello world");
 //! ```
-#![deny(missing_docs)]
 
 #[cfg(target_os = "macos")]
 #[macro_use]
@@ -79,18 +78,13 @@ pub use crate::linux::Enigo;
 /// DSL parser module
 pub mod dsl;
 
-#[cfg(feature = "with_serde")]
-#[macro_use]
-extern crate serde_derive;
-
-#[cfg(feature = "with_serde")]
-extern crate serde;
+/// Define types
+pub mod types;
 
 /// Use anyhow Result is easier to handle err.
 pub type ResultType = anyhow::Result<()>;
 
-#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// MouseButton represents a mouse button,
 /// and is used in for example
 /// [mouse_click](trait.MouseControllable.html#tymethod.mouse_click).
@@ -259,7 +253,6 @@ pub trait MouseControllable {
 /// A key on the keyboard.
 /// For alphabetical keys, use Key::Layout for a system independent key.
 /// If a key is missing, you can use the raw keycode with Key::Raw.
-#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Key {
     /// alt key on Linux and Windows (option key on macOS)
