@@ -78,7 +78,7 @@ machine-uid = "0.2"
 mac_address = "1.1"
 sciter-rs = { git = "https://github.com/open-trade/rust-sciter", branch = "dyn" }
 sys-locale = "0.2"
-enigo = { path = "libs/enigo", features = [ "with_serde" ] }
+enigo = { path = "libs/enigo" }
 clipboard = { path = "libs/clipboard" }
 ctrlc = "3.2"
 arboard = "2.0"
