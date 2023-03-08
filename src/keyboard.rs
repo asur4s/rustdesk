@@ -217,60 +217,24 @@ static mut IS_LEFT_OPTION_DOWN: bool = false;
 pub fn start_grab_loop() {
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     std::thread::spawn(move || {
-        let try_handle_keyboard = move |event: Event, key: Key, is_press: bool| -> Option<Event> {
-            // fix #2211：CAPS LOCK don't work
-            if key == Key::CapsLock || key == Key::NumLock {
-                return Some(event);
-            }
+        let func = move |event: Event| match event.event_type {
+            EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                let is_press = matches!(event.event_type, EventType::KeyPress(_));
+                feed_compose(event.scan_code, is_press);
+                update_flags(event.scan_code, event.code as u32, is_press);
 
-            let mut _keyboard_mode = KeyboardMode::Map;
-            let _scan_code = event.scan_code;
-            let _code = event.code;
-            let res = if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
-                _keyboard_mode = client::process_event(&event, None);
-                if is_press {
-                    None
+                if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
+                    client::process_event(&event, None);
+
+                    if need_grab(key, is_press) {
+                        None
+                    } else {
+                        Some(event)
+                    }
                 } else {
                     Some(event)
                 }
-            } else {
-                Some(event)
-            };
-
-            #[cfg(target_os = "windows")]
-            match _scan_code {
-                0x1D | 0x021D => rdev::set_modifier(Key::ControlLeft, is_press),
-                0xE01D => rdev::set_modifier(Key::ControlRight, is_press),
-                0x2A => rdev::set_modifier(Key::ShiftLeft, is_press),
-                0x36 => rdev::set_modifier(Key::ShiftRight, is_press),
-                0x38 => rdev::set_modifier(Key::Alt, is_press),
-                // Right Alt
-                0xE038 => rdev::set_modifier(Key::AltGr, is_press),
-                0xE05B => rdev::set_modifier(Key::MetaLeft, is_press),
-                0xE05C => rdev::set_modifier(Key::MetaRight, is_press),
-                _ => {}
             }
-
-            #[cfg(target_os = "windows")]
-            unsafe {
-                // AltGr
-                if _scan_code == 0x021D {
-                    IS_0X021D_DOWN = is_press;
-                }
-            }
-
-            #[cfg(target_os = "macos")]
-            unsafe {
-                if _code as u32 == rdev::kVK_Option {
-                    IS_LEFT_OPTION_DOWN = is_press;
-                }
-            }
-
-            return res;
-        };
-        let func = move |event: Event| match event.event_type {
-            EventType::KeyPress(key) => try_handle_keyboard(event, key, true),
-            EventType::KeyRelease(key) => try_handle_keyboard(event, key, false),
             _ => Some(event),
         };
         #[cfg(target_os = "macos")]
@@ -296,6 +260,54 @@ pub fn start_grab_loop() {
     }) {
         log::error!("Failed to init rdev grab thread: {:?}", err);
     };
+}
+
+#[inline]
+fn need_grab(key: Key, is_press: bool) -> bool {
+    // fix #2211：CAPS LOCK don't work
+    if key == Key::CapsLock || key == Key::NumLock {
+        return false;
+    }
+    if is_press {
+        true
+    } else {
+        false
+    }
+}
+
+#[inline]
+fn feed_compose(_scan_code: u32, _is_press: bool) {
+    #[cfg(target_os = "windows")]
+    match _scan_code {
+        0x1D | 0x021D => rdev::set_modifier(Key::ControlLeft, _is_press),
+        0xE01D => rdev::set_modifier(Key::ControlRight, _is_press),
+        0x2A => rdev::set_modifier(Key::ShiftLeft, _is_press),
+        0x36 => rdev::set_modifier(Key::ShiftRight, _is_press),
+        0x38 => rdev::set_modifier(Key::Alt, _is_press),
+        // Right Alt
+        0xE038 => rdev::set_modifier(Key::AltGr, _is_press),
+        0xE05B => rdev::set_modifier(Key::MetaLeft, _is_press),
+        0xE05C => rdev::set_modifier(Key::MetaRight, _is_press),
+        _ => {}
+    }
+}
+
+#[inline]
+fn update_flags(_scan_code: u32, _code: u32, _is_press: bool) {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        // AltGr
+        if _scan_code == 0x021D {
+            IS_0X021D_DOWN = _is_press;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    unsafe {
+        if _code as u32 == rdev::kVK_Option {
+            IS_LEFT_OPTION_DOWN = _is_press;
+        }
+    }
 }
 
 pub fn is_long_press(event: &Event) -> bool {
