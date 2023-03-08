@@ -164,7 +164,7 @@ impl MouseControllable for Enigo {
         if res == 0 {
             let err = get_error();
             if !err.is_empty() {
-                return Err(err.into());
+                anyhow::bail!(err);
             }
         }
         Ok(())
@@ -249,13 +249,13 @@ impl KeyboardControllable for Enigo {
     fn key_down(&mut self, key: Key) -> crate::ResultType {
         let code = self.key_to_keycode(key);
         if code == 0 || code == 65535 {
-            return Err("".into());
+            anyhow::bail!("Unexpected code");
         }
         let res = keybd_event(0, code, 0);
         if res == 0 {
             let err = get_error();
             if !err.is_empty() {
-                return Err(err.into());
+                anyhow::bail!(err);
             }
         }
         Ok(())
