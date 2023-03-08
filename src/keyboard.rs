@@ -885,7 +885,6 @@ pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -
 
 #[cfg(test)]
 mod test {
-    use crate::keyboard;
     use hbb_common::{
         anyhow,
         env_logger::*,
@@ -896,11 +895,31 @@ mod test {
     use std::{
         io::{BufReader, Read, Write},
         net::{TcpListener, TcpStream},
+        sync::atomic::Ordering,
     };
 
-    static TARGET_HOST: &'static str = "127.0.0.1";
+    use super::{feed_compose, is_long_press, need_grab, update_flags};
+    use crate::keyboard::event_to_key_events;
+    use crate::keyboard::KEYBOARD_HOOKED;
 
-    fn send_key_event(key_event: &KeyEvent) -> anyhow::Result<()> {
+    static TARGET_HOST: &'static str = "192.168.59.128";
+    static KEYBOARD_MODE: KeyboardMode = KeyboardMode::Translate;
+
+    fn process_event(event: &Event, lock_modes: Option<i32>) -> KeyboardMode {
+        let keyboard_mode = KEYBOARD_MODE;
+
+        if is_long_press(&event) {
+            return keyboard_mode;
+        }
+
+        for key_event in event_to_key_events(&event, keyboard_mode, lock_modes) {
+            dbg!(&key_event);
+            send_to_server(&key_event).ok();
+        }
+        keyboard_mode
+    }
+
+    fn send_to_server(key_event: &KeyEvent) -> anyhow::Result<()> {
         let mut stream = TcpStream::connect((TARGET_HOST, 7878))?;
         let raw_data: Vec<u8> = key_event.to_owned().try_into()?;
 
@@ -913,18 +932,68 @@ mod test {
 
     fn handle_connection(mut stream: TcpStream) -> anyhow::Result<()> {
         let mut buf_reader = BufReader::new(&mut stream);
-        let mut http_request = Vec::new();
-        let _size = buf_reader.read_to_end(&mut http_request)?;
+        let mut req = Vec::new();
+        let _size = buf_reader.read_to_end(&mut req)?;
 
-        dbg!(_size);
+        let key_event: KeyEvent = KeyEvent::try_from(req)?;
+        dbg!(key_event);
 
         Ok(())
     }
 
-    #[test]
-    fn test_keyboard_client() -> anyhow::Result<()> {
+    fn init_test_env() {
         init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "info"));
         std::env::set_var("DISPLAY", ":0");
+
+        KEYBOARD_HOOKED.swap(true, Ordering::SeqCst);
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    #[test]
+    fn test_keyboard_client() -> anyhow::Result<()> {
+        init_test_env();
+
+        let (sender, recv) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let func = move |event: Event| match event.event_type {
+                EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                    let is_press = matches!(event.event_type, EventType::KeyPress(_));
+                    feed_compose(event.scan_code, is_press);
+                    update_flags(event.scan_code, event.code as u32, is_press);
+
+                    if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
+                        sender.send(event.clone()).ok();
+
+                        if need_grab(key, is_press) {
+                            None
+                        } else {
+                            Some(event)
+                        }
+                    } else {
+                        Some(event)
+                    }
+                }
+                _ => Some(event),
+            };
+            #[cfg(target_os = "macos")]
+            rdev::set_is_main_thread(false);
+            #[cfg(target_os = "windows")]
+            rdev::set_event_popup(false);
+            if let Err(error) = rdev::grab(func) {
+                log::error!("rdev Error: {:?}", error)
+            }
+        });
+
+        loop {
+            let event = recv.recv()?;
+            process_event(&event, None);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_keyboard_client() -> anyhow::Result<()> {
+        init_test_env();
 
         let (sender, recv) = std::sync::mpsc::channel();
         if let Err(err) = rdev::start_grab_listen(move |event: Event| match event.event_type {
@@ -954,15 +1023,14 @@ mod test {
             for key_event in keyboard::event_to_key_events(&event, keyboard_mode, lock_modes) {
                 // todo:
                 log::info!("key_event: {:?}", key_event);
-                send_key_event(&key_event)?;
+                send_to_server(&key_event)?;
             }
         }
     }
 
     #[test]
     fn test_keyboard_server() -> anyhow::Result<()> {
-        init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "info"));
-        std::env::set_var("DISPLAY", ":0");
+        init_test_env();
 
         let listener = TcpListener::bind("0.0.0.0:7878")?;
 
