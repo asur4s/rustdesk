@@ -52,11 +52,11 @@ impl TryInto<Vec<u8>> for KeyEvent {
     }
 }
 
-impl TryFrom<&[u8]> for KeyEvent {
+impl TryFrom<Vec<u8>> for KeyEvent {
     type Error = anyhow::Error;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        KeyEvent::parse_from_bytes(value)
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        KeyEvent::parse_from_bytes(&value)
             .map_err(|err| anyhow::anyhow!("Faild to decode key_event: {:?}", err))
     }
 }
