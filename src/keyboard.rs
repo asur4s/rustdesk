@@ -221,7 +221,7 @@ pub fn start_grab_loop() {
             EventType::KeyPress(key) | EventType::KeyRelease(key) => {
                 let is_press = matches!(event.event_type, EventType::KeyPress(_));
                 feed_compose(event.scan_code, is_press);
-                update_flags(event.scan_code, event.code as u32, is_press);
+                _update_flags(event.scan_code, event.code as u32, is_press);
 
                 if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
                     client::process_event(&event, None);
@@ -262,6 +262,7 @@ pub fn start_grab_loop() {
     };
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[inline]
 fn need_grab(key: Key, is_press: bool) -> bool {
     // fix #2211：CAPS LOCK don't work
@@ -275,6 +276,7 @@ fn need_grab(key: Key, is_press: bool) -> bool {
     }
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[inline]
 fn feed_compose(_scan_code: u32, _is_press: bool) {
     #[cfg(target_os = "windows")]
@@ -293,7 +295,7 @@ fn feed_compose(_scan_code: u32, _is_press: bool) {
 }
 
 #[inline]
-fn update_flags(_scan_code: u32, _code: u32, _is_press: bool) {
+fn _update_flags(_scan_code: u32, _code: u32, _is_press: bool) {
     #[cfg(target_os = "windows")]
     unsafe {
         // AltGr
@@ -897,6 +899,10 @@ pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -
 
 #[cfg(test)]
 mod test {
+    #[cfg(target_os = "Windows")]
+    use super::KEYBOARD_HOOKED;
+    use super::{event_to_key_events, is_long_press};
+    use crate::keyboard_impl::*;
     use hbb_common::{
         anyhow,
         env_logger::*,
@@ -910,25 +916,35 @@ mod test {
         sync::atomic::Ordering,
     };
 
-    use super::{feed_compose, is_long_press, need_grab, update_flags};
-    use crate::keyboard::event_to_key_events;
-    use crate::keyboard::KEYBOARD_HOOKED;
-
     static TARGET_HOST: &'static str = "192.168.59.128";
     static KEYBOARD_MODE: KeyboardMode = KeyboardMode::Translate;
 
-    fn process_event(event: &Event, lock_modes: Option<i32>) -> KeyboardMode {
+    fn process_event(event: &Event, lock_modes: Option<i32>) -> anyhow::Result<()> {
         let keyboard_mode = KEYBOARD_MODE;
 
         if is_long_press(&event) {
-            return keyboard_mode;
+            return Ok(());
         }
 
         for key_event in event_to_key_events(&event, keyboard_mode, lock_modes) {
-            dbg!(&key_event);
+            let keyboard_event = KeyboardEvent::from_events(event, &key_event)?;
+            log::info!(
+                "event: {:?}=>{:?}, keycode={:?}, modifiers={:?}, mode={:?} =>>> RemoteOS={:?} RemoteCode={:?}",
+                keyboard_event
+                    .raw_event
+                    .ok_or(anyhow::anyhow!("Unexcept raw event"))?
+                    .key,
+                if keyboard_event.press { "down" } else { "up" },
+                keyboard_event.keycode,
+                keyboard_event.modifiers,
+                key_event.mode,
+                super::get_peer_platform(),
+                keyboard_event.remote_code
+            );
+            dbg!(&key_event.modifiers);
             send_to_server(&key_event).ok();
         }
-        keyboard_mode
+        Ok(())
     }
 
     fn send_to_server(key_event: &KeyEvent) -> anyhow::Result<()> {
@@ -948,15 +964,22 @@ mod test {
         let _size = buf_reader.read_to_end(&mut req)?;
 
         let key_event: KeyEvent = KeyEvent::try_from(req)?;
-        dbg!(key_event);
+        log::info!(
+            "key event: union={:?} => {:?}, modifiers={:?}, mode={:?}",
+            key_event.union,
+            if key_event.down { "down" } else { "up" },
+            key_event.modifiers,
+            key_event.mode,
+        );
 
         Ok(())
     }
 
     fn init_test_env() {
-        init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "info"));
+        init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "debug"));
         std::env::set_var("DISPLAY", ":0");
 
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         KEYBOARD_HOOKED.swap(true, Ordering::SeqCst);
     }
 
@@ -965,22 +988,21 @@ mod test {
     fn test_keyboard_client() -> anyhow::Result<()> {
         init_test_env();
 
+        use super::KEYBOARD_HOOKED;
+
         let (sender, recv) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let func = move |event: Event| match event.event_type {
                 EventType::KeyPress(key) | EventType::KeyRelease(key) => {
                     let is_press = matches!(event.event_type, EventType::KeyPress(_));
-                    feed_compose(event.scan_code, is_press);
-                    update_flags(event.scan_code, event.code as u32, is_press);
+                    super::feed_compose(event.scan_code, is_press);
+                    super::_update_flags(event.scan_code, event.code as u32, is_press);
 
                     if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
                         sender.send(event.clone()).ok();
 
-                        if need_grab(key, is_press) {
-                            None
-                        } else {
-                            Some(event)
-                        }
+                        // None
+                        Some(event)
                     } else {
                         Some(event)
                     }
@@ -1028,11 +1050,11 @@ mod test {
             let lock_modes = None;
             let keyboard_mode = KeyboardMode::Translate;
 
-            if keyboard::is_long_press(&event) {
+            if super::is_long_press(&event) {
                 continue;
             }
             log::info!("event: {:?}", &event);
-            for key_event in keyboard::event_to_key_events(&event, keyboard_mode, lock_modes) {
+            for key_event in event_to_key_events(&event, keyboard_mode, lock_modes) {
                 // todo:
                 log::info!("key_event: {:?}", key_event);
                 send_to_server(&key_event)?;
