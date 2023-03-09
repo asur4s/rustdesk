@@ -517,7 +517,7 @@ impl<T: InvokeUiSession> Session<T> {
     ) {
         let chars: Vec<char> = name.chars().collect();
         if chars.len() == 1 {
-            let key = KeyCode::_Raw(chars[0] as _);
+            let key = KeyCode::Raw(chars[0] as _);
             self._input_key(key, down, press, alt, ctrl, shift, command);
         } else {
             if let Some(key) = KEY_MAP.get(name) {
@@ -596,9 +596,10 @@ impl<T: InvokeUiSession> Session<T> {
             KeyCode::ControlKey(key) => {
                 key_event.set_control_key(key.clone());
             }
-            KeyCode::_Raw(raw) => {
+            KeyCode::Raw(raw) => {
                 key_event.set_chr(raw);
             }
+            _ => {}
         }
 
         if v == 1 {

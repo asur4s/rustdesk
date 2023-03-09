@@ -78,9 +78,6 @@ pub use crate::linux::Enigo;
 /// DSL parser module
 pub mod dsl;
 
-/// Define types
-pub mod types;
-
 /// Use anyhow Result is easier to handle err.
 pub type ResultType = anyhow::Result<()>;
 use serde::{Deserialize, Serialize};
