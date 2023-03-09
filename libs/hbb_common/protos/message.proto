@@ -197,6 +197,13 @@ enum ControlKey {
   LockScreen = 101;
 }
 
+message RawKeyEvent {
+  bool press = 1;
+  uint32 sys_code = 2;
+  uint32 pos_code = 3;
+  uint32 modifiers = 4;
+}
+
 message KeyEvent {
   bool down = 1;
   bool press = 2;
@@ -210,7 +217,7 @@ message KeyEvent {
   }
   repeated ControlKey modifiers = 8;
   KeyboardMode mode = 9;
-  bytes raw_event = 10;
+  optional RawKeyEvent raw_event = 10;
 }
 
 message CursorData {
