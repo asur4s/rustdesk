@@ -69,9 +69,19 @@ pub trait KeyOps {
 
 pub trait KeyConvert {
     fn control_key(&self) -> Option<ControlKey>;
+    fn swap_modifier(self) -> Key;
 }
 
 impl KeyConvert for Key {
+    fn swap_modifier(self) -> Key {
+        match self {
+            Key::ControlLeft => Key::MetaLeft,
+            Key::MetaLeft => Key::ControlLeft,
+            Key::ControlRight => Key::MetaRight,
+            Key::MetaRight => Key::ControlRight,
+            _ => self,
+        }
+    }
     fn control_key(&self) -> Option<ControlKey> {
         match self {
             Key::Alt => Some(ControlKey::Alt),

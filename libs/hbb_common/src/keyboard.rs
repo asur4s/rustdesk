@@ -1,4 +1,7 @@
-use crate::{message_proto::KeyEvent, protos::message::KeyboardMode};
+use crate::{
+    message_proto::{ControlKey, KeyEvent},
+    protos::message::KeyboardMode,
+};
 use protobuf::Message;
 use std::{
     convert::{TryFrom, TryInto},
@@ -58,5 +61,17 @@ impl TryFrom<Vec<u8>> for KeyEvent {
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         KeyEvent::parse_from_bytes(&value)
             .map_err(|err| anyhow::anyhow!("Faild to decode key_event: {:?}", err))
+    }
+}
+
+impl ControlKey {
+    pub fn swap_modifier(self) -> Self {
+        match self {
+            ControlKey::Control => ControlKey::Meta,
+            ControlKey::Meta => ControlKey::Control,
+            ControlKey::RControl => ControlKey::Meta,
+            ControlKey::RWin => ControlKey::Control,
+            _ => self,
+        }
     }
 }
