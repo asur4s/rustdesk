@@ -217,7 +217,7 @@ message KeyEvent {
   }
   repeated ControlKey modifiers = 8;
   KeyboardMode mode = 9;
-  optional RawKeyEvent raw_event = 10;
+  RawKeyEvent raw_event = 10;
 }
 
 message CursorData {
