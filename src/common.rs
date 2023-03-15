@@ -25,8 +25,9 @@ use hbb_common::{
     protobuf::Enum,
     protobuf::Message as _,
     rendezvous_proto::*,
-    sleep, socket_client, tokio, ResultType,
+    sleep, socket_client, tokio, ResultType, anyhow
 };
+use whoami::Platform;
 // #[cfg(any(target_os = "android", target_os = "ios", feature = "cli"))]
 use hbb_common::{config::RENDEZVOUS_PORT, futures::future::join_all};
 
@@ -785,5 +786,23 @@ pub fn handle_url_scheme(url: String) {
     if let Err(err) = crate::ipc::send_url_scheme(url.clone()) {
         log::debug!("Send the url to the existing flutter process failed, {}. Let's open a new program to handle this.", err);
         let _ = crate::run_me(vec![url]);
+    }
+}
+
+
+pub trait PlatformConvert {
+    fn try_from_str(s: &str) -> ResultType<Platform>;
+}
+
+impl PlatformConvert for Platform {
+    fn try_from_str(s: &str) -> ResultType<Platform> {
+        match s {
+            "Linux" | "linux" => Ok(Platform::Linux),
+            "Windows" | "windows" => Ok(Platform::Windows),
+            "Mac" | "Mac Os" | "Mac OS" | "macos" | "MacOS" => Ok(Platform::MacOS),
+            "Android" => Ok(Platform::Android),
+            "iOS" => Ok(Platform::Ios),
+            _ => anyhow::bail!("Unsupported platform: {}", s),
+        }
     }
 }
