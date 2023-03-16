@@ -1,14 +1,17 @@
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::client::get_key_state;
-use crate::common::GrabState;
 #[cfg(feature = "flutter")]
 use crate::flutter::{CUR_SESSION_ID, SESSIONS};
 #[cfg(not(any(feature = "flutter", feature = "cli")))]
 use crate::ui::CUR_SESSION;
+use crate::{
+    common::{GrabState, PlatformConvert},
+    keyboard_impl::{EventInfo, KeyEventOps, Modifiers},
+};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use hbb_common::log;
 use hbb_common::message_proto::*;
-use rdev::{Event, EventType, Key};
+use rdev::{Event, EventType, Key, KeyboardState};
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
@@ -16,6 +19,7 @@ use std::{
     sync::{Arc, Mutex},
     time::SystemTime,
 };
+use whoami::Platform;
 
 #[cfg(windows)]
 static mut IS_ALT_GR: bool = false;
@@ -209,7 +213,7 @@ pub fn update_grab_get_key_name() {
 }
 
 #[cfg(target_os = "windows")]
-static mut IS_0X021D_DOWN: bool = false;
+pub static mut IS_0X021D_DOWN: bool = false;
 
 #[cfg(target_os = "macos")]
 static mut IS_LEFT_OPTION_DOWN: bool = false;
@@ -835,6 +839,17 @@ pub fn translate_key_code(peer: &str, event: &Event, key_event: KeyEvent) -> Opt
 }
 
 pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -> Vec<KeyEvent> {
+    #[cfg(target_os = "windows")]
+    if let Ok(peer_platform) = Platform::try_from_str(peer) {
+        if peer_platform == Platform::Linux {
+            let mut key_event_vec: Vec<KeyEvent> = Vec::new();
+            if let Ok(key_event) = KeyEvent::from_event(event) {
+                key_event_vec.push(key_event);
+            }
+            return key_event_vec;
+        }
+    }
+
     let mut events: Vec<KeyEvent> = Vec::new();
     if let Some(unicode_info) = &event.unicode {
         if unicode_info.is_dead {
@@ -899,7 +914,7 @@ pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -
 
 #[cfg(test)]
 mod test {
-    #[cfg(target_os = "Windows")]
+    #[cfg(target_os = "windows")]
     use super::KEYBOARD_HOOKED;
     use super::{event_to_key_events, is_long_press};
     use crate::keyboard_impl::*;
@@ -907,7 +922,7 @@ mod test {
         anyhow,
         env_logger::*,
         log,
-        message_proto::{KeyEvent, KeyboardMode},
+        message_proto::{KeyEvent, KeyboardMode, RawKeyEvent},
     };
     use rdev::{Event, EventType, Key};
     use std::{
@@ -926,22 +941,7 @@ mod test {
             return Ok(());
         }
 
-        for key_event in event_to_key_events(&event, keyboard_mode, lock_modes) {
-            let keyboard_event = KeyboardEvent::from_events(event, &key_event)?;
-            log::info!(
-                "event: {:?}=>{:?}, keycode={:?}, modifiers={:?}, mode={:?} =>>> RemoteOS={:?} RemoteCode={:?}",
-                keyboard_event
-                    .raw_event
-                    .ok_or(anyhow::anyhow!("Unexcept raw event"))?
-                    .key,
-                if keyboard_event.press { "down" } else { "up" },
-                keyboard_event.keycode,
-                keyboard_event.modifiers,
-                key_event.mode,
-                super::get_peer_platform(),
-                keyboard_event.remote_code
-            );
-            dbg!(&key_event.modifiers);
+        for mut key_event in event_to_key_events(&event, keyboard_mode, lock_modes) {
             send_to_server(&key_event).ok();
         }
         Ok(())
@@ -962,16 +962,9 @@ mod test {
         let mut buf_reader = BufReader::new(&mut stream);
         let mut req = Vec::new();
         let _size = buf_reader.read_to_end(&mut req)?;
-
         let key_event: KeyEvent = KeyEvent::try_from(req)?;
-        log::info!(
-            "key event: union={:?} => {:?}, modifiers={:?}, mode={:?}",
-            key_event.union,
-            if key_event.down { "down" } else { "up" },
-            key_event.modifiers,
-            key_event.mode,
-        );
-
+        let keyboard_event = KeyboardEvent::from_key_event(&key_event)?;
+        println!("{}", key_event.format());
         Ok(())
     }
 
@@ -989,31 +982,41 @@ mod test {
         init_test_env();
 
         use super::KEYBOARD_HOOKED;
+        use rdev::KeyboardState;
+        use whoami::Platform;
 
         let (sender, recv) = std::sync::mpsc::channel();
+        let mut keyboard = rdev::Keyboard::new();
         std::thread::spawn(move || {
-            let func = move |event: Event| match event.event_type {
-                EventType::KeyPress(key) | EventType::KeyRelease(key) => {
-                    let is_press = matches!(event.event_type, EventType::KeyPress(_));
-                    super::feed_compose(event.scan_code, is_press);
-                    super::_update_flags(event.scan_code, event.code as u32, is_press);
+            let func = move |event: Event| {
+                match event.event_type {
+                    EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                        let is_press = matches!(event.event_type, EventType::KeyPress(_));
+                        super::feed_compose(event.scan_code, is_press);
+                        super::_update_flags(event.scan_code, event.code as u32, is_press);
 
-                    if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
-                        sender.send(event.clone()).ok();
+                        let mut event = event;
+                        if let Some(keyboard) = keyboard.as_mut() {
+                            event.unicode = keyboard.add(&event.event_type);
+                        }
 
-                        // None
-                        Some(event)
-                    } else {
-                        Some(event)
+                        if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
+                            sender.send(event.clone()).ok();
+
+                            // None
+                            Some(event)
+                        } else {
+                            Some(event)
+                        }
                     }
-                }
-                _ => Some(event),
+                    _ => Some(event),
+                };
             };
             #[cfg(target_os = "macos")]
             rdev::set_is_main_thread(false);
             #[cfg(target_os = "windows")]
             rdev::set_event_popup(false);
-            if let Err(error) = rdev::grab(func) {
+            if let Err(error) = rdev::listen(func) {
                 log::error!("rdev Error: {:?}", error)
             }
         });
