@@ -64,7 +64,7 @@ pub enum KeyCode {
     Chr(u32),
     Raw(u32),
     Seq(String),
-    PhysCode(Key),
+    PhysCode(PhysKeyCode),
 }
 
 impl KeyCode {
@@ -318,6 +318,15 @@ impl KeyboardEvent {
             raw_event,
         })
     }
+
+    pub fn with_phys(phys: PhysKeyCode, press: bool) -> KeyboardEvent {
+        KeyboardEvent {
+            keycode: Some(KeyCode::PhysCode(phys)),
+            press,
+            modifiers: Modifiers::NONE,
+            raw_event: None,
+        }
+    }
 }
 
 bitflags! {
@@ -379,8 +388,6 @@ impl Modifiers {
         }
         modifiers
     }
-
-   
 }
 
 impl TryFrom<String> for Modifiers {

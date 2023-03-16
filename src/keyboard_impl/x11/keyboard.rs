@@ -1,10 +1,25 @@
-use std::collections::HashMap;
-
-use hbb_common::{anyhow, ResultType};
+use hbb_common::{anyhow, log, ResultType};
 use rdev::Key;
+use std::{borrow::Borrow, cell::RefCell, collections::HashMap, rc::Rc};
 use xkbcommon::xkb::{self, x11::ffi::xkb_x11_keymap_new_from_device, Keymap};
 
-use crate::keyboard_impl::{convert_key_to_phys, KeyOps, Modifiers, RawKeyboardEvent};
+use crate::keyboard_impl::{
+    convert_key_to_phys, trace, error, KeyCode, KeyOps, KeyboardEvent, Modifiers, RawKeyboardEvent,
+};
+
+thread_local! {
+    static KBD: RefCell<Option<Rc<XKeyboard>>> = RefCell::new(build_keyboard());
+}
+
+fn build_keyboard() -> Option<Rc<XKeyboard>> {
+    XKeyboard::new()
+        .map_err(|err| {
+            error!("Failed to build XKeyboard: {:?}", err);
+            err
+        })
+        .map(|kbd| Rc::new(kbd))
+        .ok()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupIndex {
@@ -64,14 +79,11 @@ pub fn build_keysym_event_map(
     min_keycode: u32,
     max_keycode: u32,
     layout: u32,
-) -> ResultType<HashMap<u32, RawKeyboardEvent>> {
-    let mut map: HashMap<u32, RawKeyboardEvent> = HashMap::new();
+) -> HashMap<u32, KeyboardEvent> {
+    let mut map: HashMap<u32, KeyboardEvent> = HashMap::new();
 
     // todo
     for keycode in min_keycode..=max_keycode {
-        let key = Key::from_pos(keycode)?;
-        let phys = convert_key_to_phys(&key)
-            .ok_or(anyhow::anyhow!("Failed to get PhysKeyCode: {:?}", &key))?;
         let num_level = keymap.num_levels_for_key(keycode, layout);
         for level in (0..num_level).rev() {
             let keysyms = keymap.key_get_syms_by_level(keycode, layout, level);
@@ -79,17 +91,17 @@ pub fn build_keysym_event_map(
                 continue;
             }
             let keysym = keysyms[0];
-            let raw_event = RawKeyboardEvent {
-                phys: phys,
+            let kbd_event = KeyboardEvent {
+                keycode: Some(KeyCode::Raw(keycode)),
                 press: false,
                 modifiers: level_to_modifiers(level),
-                sys_code: keycode,
+                raw_event: None,
             };
-            map.insert(keysym, raw_event);
+            map.insert(keysym, kbd_event);
         }
     }
 
-    Ok(map)
+    map
 }
 
 pub fn get_active_group_index(state: &xkb::State, keymap: &xkb::Keymap) -> GroupIndex {
@@ -106,7 +118,7 @@ pub fn get_active_group_index(state: &xkb::State, keymap: &xkb::Keymap) -> Group
 
 pub struct XKeyboard {
     pub keysym_keycode_map: HashMap<xkb::Keysym, xkb::Keycode>,
-    pub keysym_event_map: HashMap<u32, RawKeyboardEvent>,
+    pub keysym_event_map: HashMap<u32, KeyboardEvent>,
     pub unused_keycodes: Vec<xkb::Keycode>,
     pub state: xkb::State,
     pub keymap: xkb::Keymap,
@@ -146,8 +158,8 @@ impl XKeyboard {
 
         let group_index = get_active_group_index(&state, &keymap);
 
-        let keysym_event_map: HashMap<u32, RawKeyboardEvent> =
-            build_keysym_event_map(&keymap, min_keycode, max_keycode, group_index.into())?;
+        let keysym_event_map: HashMap<u32, KeyboardEvent> =
+            build_keysym_event_map(&keymap, min_keycode, max_keycode, group_index.into());
 
         Ok(Self {
             keysym_keycode_map: keysym_keycode_map,
@@ -160,3 +172,24 @@ impl XKeyboard {
     }
 }
 
+pub trait XKeyboardOps {
+    fn get() -> ResultType<Rc<XKeyboard>> {
+        let mut res = None;
+        KBD.with(|m| {
+            if let Some(mux) = &(*m.borrow()) {
+                res = Some(Rc::clone(mux));
+            }
+        });
+        res.ok_or_else(|| anyhow::anyhow!("Failed to get XKeyboard"))
+    }
+}
+
+impl XKeyboardOps for XKeyboard {}
+
+#[test]
+fn test_xkeyboard() -> ResultType<()> {
+    let xkb = XKeyboard::get()?;
+    println!("device_id: {:?}", xkb.device_id);
+
+    Ok(())
+}

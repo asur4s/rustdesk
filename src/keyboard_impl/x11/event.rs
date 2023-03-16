@@ -3,7 +3,7 @@ use hbb_common::message_proto::PhysKeyCode;
 
 use crate::{
     client::get_key_state,
-    keyboard_impl::{Modifiers, RawKeyboardEvent},
+    keyboard_impl::{KeyboardEvent, Modifiers, RawKeyboardEvent},
 };
 
 pub fn is_altgr_pressed() -> bool {
@@ -40,11 +40,11 @@ impl Modifiers {
     /// compare it with the local modifiers.
     ///
     /// Linux: modifier hasn't left or right.
-    pub fn diff_modifiers(&self, target_modifiers: &Modifiers) -> Vec<RawKeyboardEvent> {
+    pub fn diff_modifiers(&self, target_modifiers: &Modifiers) -> Vec<KeyboardEvent> {
         let target_modifiers = target_modifiers.trans_positional_mods();
         let cur_modifiers = self.trans_positional_mods();
 
-        let mut raw_event_vec: Vec<RawKeyboardEvent> = vec![];
+        let mut raw_event_vec: Vec<KeyboardEvent> = vec![];
 
         for (modifier, phys) in [
             (Modifiers::CAPS, PhysKeyCode::CapsLock),
@@ -55,8 +55,8 @@ impl Modifiers {
             if pressed && !cur_modifiers.contains(modifier)
                 || !pressed && cur_modifiers.contains(modifier)
             {
-                raw_event_vec.push(RawKeyboardEvent::with_phys(phys, true));
-                raw_event_vec.push(RawKeyboardEvent::with_phys(phys, false));
+                raw_event_vec.push(KeyboardEvent::with_phys(phys, true));
+                raw_event_vec.push(KeyboardEvent::with_phys(phys, false));
             }
             continue;
         }
@@ -86,11 +86,11 @@ impl Modifiers {
         ] {
             let pressed = target_modifiers.contains(modifier);
             if !pressed && cur_modifiers.contains(modifier) {
-                raw_event_vec.push(RawKeyboardEvent::with_phys(left_phys, false));
-                raw_event_vec.push(RawKeyboardEvent::with_phys(right_phys, false));
+                raw_event_vec.push(KeyboardEvent::with_phys(left_phys, false));
+                raw_event_vec.push(KeyboardEvent::with_phys(right_phys, false));
             }
             if pressed && !cur_modifiers.contains(modifier) {
-                raw_event_vec.push(RawKeyboardEvent::with_phys(left_phys, true))
+                raw_event_vec.push(KeyboardEvent::with_phys(left_phys, true))
             }
         }
 
@@ -110,12 +110,7 @@ fn test_diff_modifiers() {
     let modifiers = Modifiers::NONE;
 
     assert_eq!(
-        vec![RawKeyboardEvent {
-            phys: PhysKeyCode::AltLeft,
-            press: true,
-            modifiers: Modifiers::NONE,
-            sys_code: 0,
-        }],
+        vec![KeyboardEvent::with_phys(PhysKeyCode::AltLeft, true),],
         modifiers.diff_modifiers(&target_modifiers)
     );
 
@@ -123,7 +118,7 @@ fn test_diff_modifiers() {
     let modifiers = Modifiers::LEFT_ALT;
 
     assert_eq!(
-        Vec::<RawKeyboardEvent>::new(),
+        Vec::<KeyboardEvent>::new(),
         modifiers.diff_modifiers(&target_modifiers)
     );
 
@@ -132,18 +127,8 @@ fn test_diff_modifiers() {
 
     assert_eq!(
         vec![
-            RawKeyboardEvent {
-                phys: PhysKeyCode::AltLeft,
-                press: false,
-                modifiers: Modifiers::NONE,
-                sys_code: 0,
-            },
-            RawKeyboardEvent {
-                phys: PhysKeyCode::AltRight,
-                press: false,
-                modifiers: Modifiers::NONE,
-                sys_code: 0,
-            }
+            KeyboardEvent::with_phys(PhysKeyCode::AltLeft, false),
+            KeyboardEvent::with_phys(PhysKeyCode::AltRight, false),
         ],
         modifiers.diff_modifiers(&target_modifiers)
     );
