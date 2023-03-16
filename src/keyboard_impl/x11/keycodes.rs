@@ -18,7 +18,10 @@ impl KeyOps for Key {
     }
 
     fn from_pos(code: u32) -> ResultType<Key> {
-        todo!()
+        match rdev::linux_key_from_code(code) {
+            Key::Unknown(code) => anyhow::bail!("Unknown keycode: {}", code),
+            key => Ok(key),
+        }
     }
 
     fn from_event(event: &rdev::Event) -> ResultType<Key> {
