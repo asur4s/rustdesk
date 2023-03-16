@@ -1,3 +1,4 @@
+mod convert_map;
 mod types;
 
 #[cfg(target_os = "linux")]
@@ -9,4 +10,5 @@ mod platform;
 mod platform;
 
 pub use self::platform::*;
+pub use convert_map::*;
 pub use types::*;
