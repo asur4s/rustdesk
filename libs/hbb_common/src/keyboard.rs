@@ -74,4 +74,18 @@ impl ControlKey {
             _ => self,
         }
     }
+
+    pub fn is_modifier(self) -> bool {
+        matches!(
+            self,
+            ControlKey::Control
+                | ControlKey::Meta
+                | ControlKey::Alt
+                | ControlKey::Shift
+                | ControlKey::RControl
+                | ControlKey::RWin
+                | ControlKey::RAlt
+                | ControlKey::RShift
+        )
+    }
 }
